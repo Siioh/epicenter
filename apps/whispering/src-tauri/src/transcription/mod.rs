@@ -65,15 +65,25 @@ fn convert_audio_for_whisper(audio_data: Vec<u8>) -> Result<Vec<u8>, Transcripti
         })?;
 
     // Use FFmpeg to convert to whisper-compatible format
-    let output = std::process::Command::new("ffmpeg")
-        .args(&[
-            "-i", &input_file.path().to_string_lossy(),
-            "-ar", "16000",        // 16kHz sample rate
-            "-ac", "1",            // Mono
-            "-c:a", "pcm_s16le",   // 16-bit PCM
-            "-y",                  // Overwrite output
-            &output_file.path().to_string_lossy(),
-        ])
+    let mut cmd = std::process::Command::new("ffmpeg");
+    cmd.args(&[
+        "-i", &input_file.path().to_string_lossy(),
+        "-ar", "16000",        // 16kHz sample rate
+        "-ac", "1",            // Mono
+        "-c:a", "pcm_s16le",   // 16-bit PCM
+        "-y",                  // Overwrite output
+        &output_file.path().to_string_lossy(),
+    ]);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd
         .output()
         .map_err(|e| TranscriptionError::AudioReadError {
             message: format!("Failed to run ffmpeg: {}", e),
